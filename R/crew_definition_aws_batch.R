@@ -1,34 +1,13 @@
-#' @title Create an AWS Batch monitor object.
+#' @title Create an AWS Batch job definition object.
 #' @export
-#' @family monitor
-#' @description Create an `R6` object to manage AWS Batch jobs and
-#'   job definitions.
-#' @param job_queue Character of length 1, name of the AWS Batch
-#'   job queue.
+#' @family definition
+#' @description Create an `R6` object to manage a job definition for AWS
+#'   Batch jobs.
+#' @inheritParams crew_monitor_aws_batch
 #' @param job_definition Character of length 1, name of the AWS Batch
 #'   job definition. The job definition might or might not exist
-#'   at the time `crew_aws_batch_monitor()` is called. Either way is fine.
-#' @param log_group Character of length 1,
-#'   AWS Batch CloudWatch log group to get job logs.
-#'   The default log group is often "/aws/batch/job", but not always.
-#'   It is not easy to get the log group of an active job or job
-#'   definition, so if you have a non-default log group and you do not
-#'   know its name, please consult your system administrator.
-#' @param config Optional named list, `config` argument of
-#'   `paws.compute::batch()` with optional configuration details.
-#' @param credentials Optional named list. `credentials` argument of
-#'   `paws.compute::batch()` with optional credentials (if not already
-#'   provided through environment variables such as `AWS_ACCESS_KEY_ID`).
-#' @param endpoint Optional character of length 1. `endpoint`
-#'   argument of `paws.compute::batch()` with the endpoint to send HTTP
-#'   requests.
-#' @param region Character of length 1. `region` argument of
-#'   `paws.compute::batch()` with an AWS region string such as `"us-east-2"`.
-#'   Serves as the region for both AWS Batch and CloudWatch. Tries to
-#'   default to `paws.common::get_config()$region`, then to
-#'   `Sys.getenv("AWS_REGION")` if unsuccessful, then
-#'   `Sys.getenv("AWS_REGION")`, then `Sys.getenv("AWS_DEFAULT_REGION")`.
-crew_aws_batch_monitor <- function(
+#'   at the time `crew_definition_aws_batch()` is called. Either way is fine.
+crew_definition_aws_batch <- function(
   job_queue,
   job_definition = paste0(
     "crew-aws-batch-job-definition-",
@@ -43,7 +22,7 @@ crew_aws_batch_monitor <- function(
   region <- region %|||% paws.common::get_config()$region
   region <- region %|||chr% Sys.getenv("AWS_REGION", unset = "")
   region <- region %|||chr% Sys.getenv("AWS_DEFAULT_REGION", unset = "")
-  out <- crew_class_aws_batch_monitor$new(
+  out <- crew_class_definition_aws_batch$new(
     job_queue = job_queue,
     job_definition = job_definition,
     log_group = log_group,
@@ -56,13 +35,13 @@ crew_aws_batch_monitor <- function(
   out
 }
 
-#' @title AWS Batch monitor class
+#' @title AWS Batch definition class
 #' @export
-#' @family monitor
-#' @description AWS Batch job definition `R6` class
-#' @details See [crew_aws_batch_monitor()].
-crew_class_aws_batch_monitor <- R6::R6Class(
-  classname = "crew_class_aws_batch_monitor",
+#' @family definition
+#' @description AWS Batch definition `R6` class
+#' @details See [crew_definition_aws_batch()].
+crew_class_definition_aws_batch <- R6::R6Class(
+  classname = "crew_class_definition_aws_batch",
   cloneable = FALSE,
   private = list(
     .job_queue = NULL,
@@ -320,31 +299,31 @@ crew_class_aws_batch_monitor <- R6::R6Class(
     }
   ),
   active = list(
-    #' @field job_queue See [crew_aws_batch_monitor()].
+    #' @field job_queue See [crew_definition_aws_batch()].
     job_queue = function() {
       .subset2(private, ".job_queue")
     },
-    #' @field job_definition See [crew_aws_batch_monitor()].
+    #' @field job_definition See [crew_definition_aws_batch()].
     job_definition = function() {
       .subset2(private, ".job_definition")
     },
-    #' @field log_group See [crew_aws_batch_monitor()].
+    #' @field log_group See [crew_definition_aws_batch()].
     log_group = function() {
       .subset2(private, ".log_group")
     },
-    #' @field config See [crew_aws_batch_monitor()].
+    #' @field config See [crew_definition_aws_batch()].
     config = function() {
       .subset2(private, ".config")
     },
-    #' @field credentials See [crew_aws_batch_monitor()].
+    #' @field credentials See [crew_definition_aws_batch()].
     credentials = function() {
       .subset2(private, ".credentials")
     },
-    #' @field endpoint See [crew_aws_batch_monitor()].
+    #' @field endpoint See [crew_definition_aws_batch()].
     endpoint = function() {
       .subset2(private, ".endpoint")
     },
-    #' @field region See [crew_aws_batch_monitor()].
+    #' @field region See [crew_definition_aws_batch()].
     region = function() {
       .subset2(private, ".region")
     }
@@ -352,13 +331,13 @@ crew_class_aws_batch_monitor <- R6::R6Class(
   public = list(
     #' @description AWS Batch job definition constructor.
     #' @return AWS Batch job definition object.
-    #' @param job_queue See [crew_aws_batch_monitor()].
-    #' @param job_definition See [crew_aws_batch_monitor()].
-    #' @param log_group See [crew_aws_batch_monitor()].
-    #' @param config See [crew_aws_batch_monitor()].
-    #' @param credentials See [crew_aws_batch_monitor()].
-    #' @param endpoint See [crew_aws_batch_monitor()].
-    #' @param region See [crew_aws_batch_monitor()].
+    #' @param job_queue See [crew_definition_aws_batch()].
+    #' @param job_definition See [crew_definition_aws_batch()].
+    #' @param log_group See [crew_definition_aws_batch()].
+    #' @param config See [crew_definition_aws_batch()].
+    #' @param credentials See [crew_definition_aws_batch()].
+    #' @param endpoint See [crew_definition_aws_batch()].
+    #' @param region See [crew_definition_aws_batch()].
     initialize = function(
       job_queue = NULL,
       job_definition = NULL,
@@ -415,14 +394,14 @@ crew_class_aws_batch_monitor <- R6::R6Class(
     #' @description Register a job definition.
     #' @details The `register()` method registers a simple
     #'   job definition using the job definition name and log group originally
-    #'   supplied to [crew_aws_batch_monitor()].
+    #'   supplied to [crew_definition_aws_batch()].
     #'   Job definitions created with `$register()` are container-based
     #'   and use the AWS log driver.
     #'   For more complicated
     #'   kinds of jobs, we recommend skipping `register()`: first call
     #'   <https://www.paws-r-sdk.com/docs/batch_register_job_definition/>
     #'   to register the job definition, then supply the job definition
-    #'   name to the `job_definition` argument of [crew_aws_batch_monitor()].
+    #'   name to the `job_definition` argument of [crew_definition_aws_batch()].
     #' @return A one-row `tibble` with the job definition name, ARN, and
     #'  revision number of the registered job definition.
     #' @param image Character of length 1, Docker image used for each job.
@@ -499,61 +478,133 @@ crew_class_aws_batch_monitor <- R6::R6Class(
       )
       # nocov end
     },
-    #' @description Attempt to deregister the job definition.
+    #' @description Attempt to deregister a revision of the job definition.
     #' @details Attempt to deregister the job definition whose name was
     #'   originally supplied to the `job_definition` argument of
-    #'   [crew_aws_batch_monitor()].
+    #'   [crew_definition_aws_batch()].
     #' @return `NULL` (invisibly).
-    deregister = function() {
+    #' @param revision Finite positive integer of length 1, optional revision
+    #'   number to deregister. If `NULL`, then only the highest revision
+    #'   number of the job definition is deregistered, if it exists.
+    deregister = function(revision = NULL) {
       # Covered in tests/interactive/definitions.R
       # nocov start
-      client <- private$.client()
-      response <- self$describe()
-      if (is.null(response)) {
-        return(invisible())
-      }
-      client$deregister_job_definition(
-        jobDefinition = response$jobDefinitionArn
+      crew::crew_assert(
+        revision %|||% 1L,
+        is.integer(.),
+        length(.) == 1L,
+        is.finite(.),
+        . > 0L,
+        message = "revision must be a finite positive integer of length 1."
       )
+      client <- private$.client()
+      if (is.null(revision)) {
+        response <- self$describe(active = TRUE)
+        if (is.null(response) || nrow(response) < 1L) {
+          return(invisible())
+        }
+        revision <- max(response$revision)
+      }
+      definition <- paste0(private$.job_definition, ":", revision)
+      client$deregister_job_definition(jobDefinition = definition)
       invisible()
       # nocov end
     },
-    #' @description Describe the current active revision of the job definition.
-    #' @return If the job definition is not active or does not exist,
-    #'   `describe()` returns `NULL`. Otherwise, it returns
-    #'   a `tibble` with job definition information. Some fields
-    #'   may be nested lists.
-    describe = function() {
+    #' @description Describe the revisions of the job definition.
+    #' @return A `tibble` with job definition information.
+    #'   There is one row per revision.
+    #'   Some fields may be nested lists.
+    #' @param revision Positive integer of length 1, optional revision
+    #'   number to describe.
+    #' @param active Logical of length 1, whether to filter on just
+    #'   the active job definition.
+    describe = function(revision = NULL, active = FALSE) {
       # Covered in tests/interactive/definitions.R
       # nocov start
-      client <- private$.client()
-      response <- client$describe_job_definitions(
-        jobDefinitionName = private$.job_definition,
-        status = "ACTIVE"
+      crew::crew_assert(
+        revision %|||% 1L,
+        is.integer(.),
+        length(.) == 1L,
+        is.finite(.),
+        . > 0L,
+        message = "revision must be a finite positive integer of length 1."
       )
-      if (!length(response$jobDefinitions)) {
-        return(NULL)
+      crew::crew_assert(
+        active,
+        isTRUE(.) || isFALSE(.),
+        message = "'active' must be either TRUE or FALSE."
+      )
+      status <- if_any(active, "ACTIVE", NULL)
+      client <- private$.client()
+      if (is.null(revision)) {
+        pages <- paws.common::paginate(
+          client$describe_job_definitions(
+            jobDefinitionName = private$.job_definition,
+            status = status
+          )
+        )
+      } else {
+        pages <- paws.common::paginate(
+          client$describe_job_definitions(
+            jobDefinitions = paste0(private$.job_definition, ":", revision),
+            status = status
+          )
+        )
       }
-      out <- response$jobDefinitions[[1L]]
-      for (index in seq_along(out)) {
-        if (length(out[[index]]) > 1L) {
-          out[[index]] <- list(out[[index]])
-        }
-        if (length(out[[index]]) < 1L) {
-          out[[index]] <- NA
+      out <- list()
+      for (page in pages) {
+        for (definition in page$jobDefinitions) {
+          out[[length(out) + 1L]] <- tibble::tibble(
+            name = definition$jobDefinitionName,
+            arn = definition$jobDefinitionArn,
+            revision = as.integer(definition$revision),
+            status = tolower(definition$status),
+            type = definition$type,
+            scheduling_priority = definition$schedulingPriority %||% NA,
+            parameters = list(definition$parameters),
+            retry_strategy = list(definition$retryStrategy),
+            container_properties = list(definition$containerProperties),
+            timeout = list(definition$timeout),
+            node_properties = list(definition$nodeProperties),
+            tags = list(definition$tags),
+            propagate_tags = as.logical(definition$propagateTags) %||% NA,
+            platform_capabilities = definition$platformCapabilities %||% NA,
+            eks_properties = list(definition$eksProperties),
+            container_orchestration_type =
+              definition$containerOrchestrationType %||% NA
+          )
         }
       }
-      tibble::as_tibble(out)
+      if (!length(out)) {
+        out[[length(out) + 1L]] <- tibble::tibble(
+          name = character(0L),
+          arn = character(0L),
+          revision = integer(0L),
+          status = character(0L),
+          type = character(0L),
+          scheduling_priority = character(0L),
+          parameters = list(),
+          retry_strategy = list(),
+          container_properties = list(),
+          timeout = list(),
+          node_properties = list(),
+          tags = list(),
+          propagate_tags = logical(0L),
+          platform_capabilities = character(0L),
+          eks_properties = list(),
+          container_orchestration_type = character(0L)
+        )
+      }
+      do.call(what = vctrs::vec_rbind, args = out)
       # nocov end
     },
-    #' @description Submit a single AWS Batch job to the given job queue
-    #'   under the given job definition.
+    #' @description Submit an AWS Batch job with the given job definition.
     #' @details This method uses the job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
+    #'   that were supplied through [crew_definition_aws_batch()].
     #'   Any jobs submitted this way are different from the
     #'   `crew` workers that the `crew` controller starts automatically
     #'   using the AWS Batch launcher plugin.
-    #'   You may use the `submit()` method in the monitor for different
+    #'   You may use the `submit()` method in the definition for different
     #'   purposes such as testing.
     #' @return A one-row `tibble` with the name, ID, and
     #'   Amazon resource name (ARN) of the job.
@@ -627,363 +678,6 @@ crew_class_aws_batch_monitor <- R6::R6Class(
         id = out$jobId,
         arn = out$jobArn
       )
-      # nocov end
-    },
-    #' @description Terminate an AWS Batch job.
-    #' @return `NULL` (invisibly).
-    #' @param id Character of length 1, ID of the AWS Batch job to terminate.
-    #' @param reason Character of length 1, natural language explaining
-    #'   the reason the job was terminated.
-    terminate = function(
-      id,
-      reason = "terminated by crew.aws.batch monitor"
-    ) {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      crew::crew_assert(
-        id,
-        is.character(.),
-        !anyNA(.),
-        length(.) == 1L,
-        nzchar(.),
-        message = "job ID must be a valid character of length 1"
-      )
-      crew::crew_assert(
-        reason,
-        is.character(.),
-        !anyNA(.),
-        length(.) == 1L,
-        nzchar(.),
-        message = "'reason' must be a valid character of length 1"
-      )
-      client <- private$.client()
-      client$terminate_job(jobId = id, reason = reason)
-      invisible()
-      # nocov end
-    },
-    #' @description Get the status of a single job
-    #' @return A one-row `tibble` with information about the job.
-    #' @param id Character of length 1, job ID. This is different
-    #'   from the user-supplied job name.
-    status = function(id) {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      crew::crew_assert(
-        id,
-        is.character(.),
-        !anyNA(.),
-        nzchar(.),
-        length(.) == 1L,
-        message = "'id' must be a valid character of length 1"
-      )
-      client <- private$.client()
-      result <- client$describe_jobs(jobs = id)
-      if (!length(result$jobs)) {
-        return(
-          tibble::tibble(
-            name = character(0L),
-            id = character(0L),
-            arn = character(0L),
-            status = character(0L),
-            reason = character(0L),
-            created = numeric(0L),
-            started = numeric(0L),
-            stopped = numeric(0L)
-          )
-        )
-      }
-      out <- client$describe_jobs(jobs = id)$jobs[[1L]]
-      tibble::tibble(
-        name = out$jobName,
-        id = out$jobId,
-        arn = out$jobArn,
-        status = tolower(out$status),
-        reason = if_any(
-          length(out$statusReason),
-          out$statusReason,
-          NA_character_
-        ),
-        created = out$createdAt,
-        started = if_any(length(out$startedAt), out$startedAt, NA_real_),
-        stopped = if_any(length(out$stoppedAt), out$stoppedAt, NA_real_)
-      )
-      # nocov end
-    },
-    #' @description Get the CloudWatch log of a job.
-    #' @details This method assumes the job has log driver `"awslogs"`
-    #'   (specifying AWS CloudWatch) and that the log group is the one
-    #'   prespecified in the `log_group` argument of
-    #'   [crew_aws_batch_monitor()]. This method cannot use
-    #'   other log drivers such as Splunk, and it will fail if the log
-    #'   group is wrong or missing.
-    #' @return A `tibble` with log information.
-    #' @param id Character of length 1, job ID. This is different
-    #'   from the user-supplied job name.
-    #' @param start_from_head Logical of length 1, whether to print earlier
-    #'   log events before later ones.
-    log = function(id, start_from_head = FALSE) {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      crew::crew_assert(
-        id,
-        is.character(.),
-        !anyNA(.),
-        nzchar(.),
-        length(.) == 1L,
-        message = "'id' must be a valid character of length 1"
-      )
-      client <- private$.client()
-      result <- client$describe_jobs(jobs = id)
-      null_log <- tibble::tibble(
-        message = character(0L),
-        timestamp = character(0L),
-        ingestion_time = character(0L)
-      )
-      if (!length(result$jobs)) {
-        return(null_log)
-      }
-      log_stream_name <- result$jobs[[1L]]$container$logStreamName
-      client <- paws.management::cloudwatchlogs(
-        config = as.list(private$.config),
-        credentials = as.list(private$.credentials),
-        endpoint = private$.endpoint,
-        region = private$.region
-      )
-      pages <- list( # TODO: paws.common::paginate() # nolint
-        client$get_log_events(
-          logGroupName = private$.log_group,
-          logStreamName = log_stream_name,
-          startFromHead = start_from_head
-        )
-      )
-      out <- list()
-      for (page in pages) {
-        for (event in page$events) {
-          out[[length(out) + 1L]] <- tibble::tibble(
-            message = event$message,
-            timestamp = event$timestamp,
-            ingestion_time = event$ingestionTime
-          )
-        }
-      }
-      if (!length(out)) {
-        return(null_log)
-      }
-      do.call(what = rbind, args = out)
-      # nocov end
-    },
-    #' @description List all the jobs in the given job queue
-    #'   with the given job definition.
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    #' @param status Character vector of job states. Results are limited
-    #'   to these job states.
-    jobs = function(
-      status = c(
-        "submitted",
-        "pending",
-        "runnable",
-        "starting",
-        "running",
-        "succeeded",
-        "failed"
-      )
-    ) {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      crew::crew_assert(
-        status,
-        is.character(.),
-        !anyNA(.),
-        nzchar(.),
-        message = "'status' must be a valid character vector"
-      )
-      crew::crew_assert(
-        status,
-        . %in% c(
-          "submitted",
-          "pending",
-          "runnable",
-          "starting",
-          "running",
-          "succeeded",
-          "failed"
-        ),
-        message = paste(
-          "elements of 'status' must be \"submitted\", \"pending\",",
-          "\"runnable\", \"starting\", \"running\", \"succeeded\", or",
-          "\"failed\"."
-        )
-      )
-      status <- unique(status)
-      filters <- list(
-        list(
-          name = "JOB_DEFINITION",
-          values = private$.job_definition
-        )
-      )
-      client <- private$.client()
-      pages <- paws.common::paginate(
-        Operation = client$list_jobs(
-          jobQueue = private$.job_queue,
-          filters = filters
-        )
-      )
-      out <- list()
-      for (page in pages) {
-        for (job in page$jobSummaryList) {
-          out[[length(out) + 1L]] <- tibble::tibble(
-            name = job$jobName,
-            id = job$jobId,
-            arn = job$jobArn,
-            status = job$status,
-            reason = if_any(
-              length(job$statusReason),
-              job$statusReason,
-              NA_character_
-            ),
-            created = job$createdAt,
-            started = if_any(length(job$startedAt), job$startedAt, NA_real_),
-            stopped = if_any(length(job$stoppedAt), job$stoppedAt, NA_real_)
-          )
-        }
-      }
-      if (!length(out)) {
-        out[[length(out) + 1L]] <- tibble::tibble(
-          name = character(0L),
-          id = character(0L),
-          arn = character(0L),
-          status = character(0L),
-          reason = character(0L),
-          created = numeric(0L),
-          started = numeric(0L),
-          stopped = numeric(0L)
-        )
-      }
-      out <- do.call(what = rbind, args = out)
-      out$status <- tolower(out$status)
-      out[out$status %in% status, ]
-      # nocov end
-    },
-    #' @description List active jobs: submitted, pending,
-    #'   runnable, starting, or running (not succeeded or failed).
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    active = function() {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      status <- c(
-        "submitted",
-        "pending",
-        "runnable",
-        "starting",
-        "running"
-      )
-      self$jobs(status = status)
-      # nocov end
-    },
-    #' @description List inactive jobs: ones whose status
-    #'   is succeeded or failed (not submitted, pending,
-    #'   runnable, starting, or running).
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    inactive = function() {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      self$jobs(status = c("succeeded", "failed"))
-      # nocov end
-    },
-    #' @description List jobs whose status is `"submitted"`.
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    submitted = function() {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      self$jobs(status = "submitted")
-      # nocov end
-    },
-    #' @description List jobs whose status is `"pending"`.
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    pending = function() {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      self$jobs(status = "pending")
-      # nocov end
-    },
-    #' @description List jobs whose status is `"runnable"`.
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    runnable = function() {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      self$jobs(status = "runnable")
-      # nocov end
-    },
-    #' @description List jobs whose status is `"starting"`.
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    starting = function() {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      self$jobs(status = "starting")
-      # nocov end
-    },
-    #' @description List jobs whose status is `"running"`.
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    running = function() {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      self$jobs(status = "running")
-      # nocov end
-    },
-    #' @description List jobs whose status is `"succeeded"`.
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    succeeded = function() {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      self$jobs(status = "succeeded")
-      # nocov end
-    },
-    #' @description List jobs whose status is `"failed"`.
-    #' @details The output only includes jobs under the
-    #'   job queue and job definition
-    #'   that were supplied through [crew_aws_batch_monitor()].
-    #' @return A `tibble` with one row per job and columns
-    #'   with job information.
-    failed = function() {
-      # Covered in tests/interactive/jobs.R
-      # nocov start
-      self$jobs(status = "failed")
       # nocov end
     }
   )
