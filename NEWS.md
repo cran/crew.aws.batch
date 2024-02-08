@@ -1,3 +1,8 @@
+# crew.aws.batch 0.0.5
+
+* Require `crew` >= 0.8.0.
+* Describe IAM policy requirements in the documentation.
+
 # crew.aws.batch 0.0.4
 
 * Move the `args_client()` and `args_submit()` launcher methods to the `private` list.
