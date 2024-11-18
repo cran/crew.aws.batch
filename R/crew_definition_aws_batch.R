@@ -186,7 +186,7 @@ crew_class_definition_aws_batch <- R6::R6Class(
         resources$gpus <- list(value = as.character(gpus), type = "GPU")
       }
       if (length(resources)) {
-        args$containerProperties$resourceRequirements <- resources
+        args$containerProperties$resourceRequirements <- non_null(resources)
       }
       args$containerProperties$logConfiguration <- list(
         logDriver = "awslogs",
@@ -196,7 +196,7 @@ crew_class_definition_aws_batch <- R6::R6Class(
           "awslogs-stream-prefix" = private$.job_definition
         )
       )
-      args
+      non_null(args)
     },
     .args_submit = function(
       command,
@@ -272,7 +272,7 @@ crew_class_definition_aws_batch <- R6::R6Class(
         memory <- memory * ((5L ^ 9L) / (2L ^ 11L))
       }
       args <- list()
-      args$jobName <- name
+      args$jobName <- crew.aws.batch::crew_aws_batch_job_name(name)
       args$jobQueue <- private$.job_queue
       if (!is.null(share_identifier)) {
         args$shareIdentifier <- share_identifier
@@ -304,7 +304,7 @@ crew_class_definition_aws_batch <- R6::R6Class(
       if (length(resources)) {
         args$containerOverrides$resourceRequirements <- resources
       }
-      args
+      non_null(args)
     }
   ),
   active = list(
@@ -653,10 +653,10 @@ crew_class_definition_aws_batch <- R6::R6Class(
     submit = function(
       command = c("sleep", "300"),
       name = paste0("crew-aws-batch-job-", crew::crew_random_name()),
-      memory_units = "gigabytes",
-      memory = NULL,
       cpus = NULL,
       gpus = NULL,
+      memory_units = "gigabytes",
+      memory = NULL,
       seconds_timeout = NULL,
       share_identifier = NULL,
       scheduling_priority_override = NULL,

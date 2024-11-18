@@ -9,7 +9,7 @@ crew_launcher_aws_batch(
   seconds_interval = 0.5,
   seconds_timeout = 60,
   seconds_launch = 1800,
-  seconds_idle = Inf,
+  seconds_idle = 300,
   seconds_wall = Inf,
   tasks_max = Inf,
   tasks_timers = 0L,
@@ -17,15 +17,18 @@ crew_launcher_aws_batch(
   reset_packages = FALSE,
   reset_options = FALSE,
   garbage_collection = FALSE,
-  launch_max = 5L,
+  crashes_error = 5L,
   tls = crew::crew_tls(mode = "automatic"),
   processes = NULL,
-  aws_batch_config = list(),
-  aws_batch_credentials = list(),
+  r_arguments = c("--no-save", "--no-restore"),
+  options_metrics = crew::crew_options_metrics(),
+  options_aws_batch = crew.aws.batch::crew_options_aws_batch(),
+  aws_batch_config = NULL,
+  aws_batch_credentials = NULL,
   aws_batch_endpoint = NULL,
   aws_batch_region = NULL,
-  aws_batch_job_definition,
-  aws_batch_job_queue,
+  aws_batch_job_definition = NULL,
+  aws_batch_job_queue = NULL,
   aws_batch_share_identifier = NULL,
   aws_batch_scheduling_priority_override = NULL,
   aws_batch_parameters = NULL,
@@ -95,15 +98,14 @@ because packages sometimes rely on options they set at loading time.}
 \item{garbage_collection}{\code{TRUE} to run garbage collection between
 tasks, \code{FALSE} to skip.}
 
-\item{launch_max}{Positive integer of length 1, maximum allowed
-consecutive launch attempts which do not complete any tasks.
-Enforced on a worker-by-worker basis.
-The futile launch count resets to back 0
-for each worker that completes a task.
-It is recommended to set \code{launch_max} above 0
-because sometimes workers are unproductive under perfectly ordinary
-circumstances. But \code{launch_max} should still be small enough
-to detect errors in the underlying platform.}
+\item{crashes_error}{Positive integer scalar. If a worker exits
+\code{crashes_error} times in a row without completing all its assigned
+tasks, then the launcher throws an informative error.
+The reason for \code{crashes_error}
+is to avoid an infinite loop where a task crashes a worker
+(through a segfault, maxing out memory, etc) but the worker always
+relaunches. To monitor the resources of \code{crew} workers,
+please see \url{https://wlandau.github.io/crew/articles/logging.html}.}
 
 \item{tls}{A TLS configuration object from \code{\link[crew:crew_tls]{crew_tls()}}.}
 
@@ -116,87 +118,70 @@ Plugins that may use these processes should run asynchronous calls
 using \code{launcher$async$eval()} and expect a \code{mirai} task object
 as the return value.}
 
-\item{aws_batch_config}{Named list, \code{config} argument of
-\code{paws.compute::batch()} with optional configuration details.}
+\item{r_arguments}{Optional character vector of command line arguments
+to pass to \code{Rscript} (non-Windows) or \code{Rscript.exe} (Windows)
+when starting a worker. Example:
+\code{r_arguments = c("--vanilla", "--max-connections=32")}.}
 
-\item{aws_batch_credentials}{Named list. \code{credentials} argument of
-\code{paws.compute::batch()} with optional credentials (if not already
-provided through environment variables such as \code{AWS_ACCESS_KEY_ID}).}
+\item{options_metrics}{Either \code{NULL} to opt out of resource metric logging
+for workers, or an object from \code{\link[crew:crew_options_metrics]{crew_options_metrics()}} to enable
+and configure resource metric logging for workers.
+For resource logging to run,
+the \code{autometric} R package version 0.1.0 or higher
+must be installed.}
 
-\item{aws_batch_endpoint}{Character of length 1. \code{endpoint}
-argument of \code{paws.compute::batch()} with the endpoint to send HTTP
-requests.}
+\item{options_aws_batch}{List of options from \code{\link[=crew_options_aws_batch]{crew_options_aws_batch()}}.
+The job definition and job queue must be specified in
+\code{\link[=crew_options_aws_batch]{crew_options_aws_batch()}}. \code{\link[=crew_options_aws_batch]{crew_options_aws_batch()}} also allows
+you to request vCPUs, GPUs, and memory for the jobs.}
 
-\item{aws_batch_region}{Character of length 1. \code{region} argument of
-\code{paws.compute::batch()} with an AWS region string such as \code{"us-east-2"}.}
+\item{aws_batch_config}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_job_definition}{Character of length 1, name of the AWS
-Batch job definition to use. There is no default for this argument,
-and a job definition must be created prior to running the controller.
-Please see \url{https://docs.aws.amazon.com/batch/} for details.
+\item{aws_batch_credentials}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-To create a job definition, you will need to create a Docker-compatible
-image which can run R and \code{crew}. You may which to inherit
-from the images at \url{https://github.com/rocker-org/rocker-versioned2}.}
+\item{aws_batch_endpoint}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_job_queue}{Character of length 1, name of the AWS
-Batch job queue to use. There is no default for this argument,
-and a job queue must be created prior to running the controller.
-Please see \url{https://docs.aws.amazon.com/batch/} for details.}
+\item{aws_batch_region}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_share_identifier}{\code{NULL} or character of length 1.
-For details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_job_definition}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_scheduling_priority_override}{\code{NULL} or integer of length 1.
-For details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_job_queue}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_parameters}{\code{NULL} or a nonempty list.
-For details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_share_identifier}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_container_overrides}{\code{NULL} or a nonempty named list of
-fields to override
-in the container specified in the job definition. Any overrides for the
-\code{command} field are ignored because \code{crew.aws.batch} needs to override
-the command to run the \code{crew} worker.
-For more details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_scheduling_priority_override}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_node_overrides}{\code{NULL} or a nonempty named list.
-For more details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_parameters}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_retry_strategy}{\code{NULL} or a nonempty named list.
-For more details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_container_overrides}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_propagate_tags}{\code{NULL} or a nonempty list.
-For more details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_node_overrides}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_timeout}{\code{NULL} or a nonempty named list.
-For more details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_retry_strategy}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_tags}{\code{NULL} or a nonempty list.
-For more details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_propagate_tags}{Deprecated.
+Use \code{options_aws_batch} instead.}
 
-\item{aws_batch_eks_properties_override}{\code{NULL} or a nonempty named list.
-For more details, visit
-\url{https://www.paws-r-sdk.com/docs/batch_submit_job/} and the
-"AWS arguments" sections of this help file.}
+\item{aws_batch_timeout}{Deprecated.
+Use \code{options_aws_batch} instead.}
+
+\item{aws_batch_tags}{Deprecated.
+Use \code{options_aws_batch} instead.}
+
+\item{aws_batch_eks_properties_override}{Deprecated.
+Use \code{options_aws_batch} instead.}
 }
 \value{
 An \code{R6} AWS Batch launcher object.
