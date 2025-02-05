@@ -12,9 +12,11 @@
 #'   CloudWatch logs API call.
 #'   For more information on AWS policies and permissions, please visit
 #'   <https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html>.
-#' @param job_queue Character of length 1, name of the AWS Batch
-#'   job queue.
-#' @param job_definition Character of length 1, name of the AWS Batch
+#' @param job_queue Character vector of names of AWS Batch job queues.
+#'   As of `crew.aws.batch` version 0.0.8 and above, you can supply
+#'   more than one job queue. Methods like `jobs()` and `active()`
+#'   will query all the job queues given.
+#' @param job_definition Character string, name of the AWS Batch
 #'   job definition.
 #' @param log_group Character of length 1,
 #'   AWS Batch CloudWatch log group to get job logs.
@@ -49,7 +51,7 @@ crew_monitor_aws_batch <- function(
   region <- region %|||chr% Sys.getenv("AWS_REGION", unset = "")
   region <- region %|||chr% Sys.getenv("AWS_DEFAULT_REGION", unset = "")
   out <- crew_class_monitor_aws_batch$new(
-    job_queue = job_queue,
+    job_queue = unique(job_queue),
     job_definition = job_definition,
     log_group = log_group,
     config = config,
@@ -148,7 +150,6 @@ crew_class_monitor_aws_batch <- R6::R6Class(
     #' @return `NULL` (invisibly). Throws an error if a field is invalid.
     validate = function() {
       fields <- c(
-        ".job_queue",
         ".job_definition",
         ".log_group",
         ".region"
@@ -160,9 +161,20 @@ crew_class_monitor_aws_batch <- R6::R6Class(
           !anyNA(.),
           length(.) == 1L,
           nzchar(.),
-          message = paste(field, "must be a nonempty character of length 1")
+          message = paste(field, "must be a nonempty character string")
         )
       }
+      crew::crew_assert(
+        private[[".job_queue"]],
+        is.character(.),
+        !anyNA(.),
+        length(.) > 0L,
+        nzchar(.),
+        message = paste(
+          "job_queue must be a valid nonempty character vector of",
+          "AWS Batch job queue names."
+        )
+      )
       crew::crew_assert(
         private$.endpoint %|||% "x",
         is.character(.),
@@ -223,7 +235,7 @@ crew_class_monitor_aws_batch <- R6::R6Class(
       crew::crew_assert(verbose, isTRUE(.) || isFALSE(.))
       client <- private$.client()
       if (all) {
-        ids <- self$jobs()$id
+        ids <- self$active()$id
       }
       progress <- progress_init(verbose = verbose, total = length(ids))
       for (id in ids) {
@@ -248,7 +260,7 @@ crew_class_monitor_aws_batch <- R6::R6Class(
         !anyNA(.),
         nzchar(.),
         length(.) == 1L,
-        message = "'id' must be a valid character of length 1"
+        message = "'id' must be a single valid character string"
       )
       client <- private$.client()
       result <- client$describe_jobs(jobs = id)
@@ -258,28 +270,34 @@ crew_class_monitor_aws_batch <- R6::R6Class(
             name = character(0L),
             id = character(0L),
             arn = character(0L),
+            queue = character(0L),
             status = character(0L),
             reason = character(0L),
-            created = numeric(0L),
-            started = numeric(0L),
-            stopped = numeric(0L)
+            created = as.POSIXct(numeric(0L)),
+            started = as.POSIXct(numeric(0L)),
+            stopped = as.POSIXct(numeric(0L))
           )
         )
       }
-      out <- client$describe_jobs(jobs = id)$jobs[[1L]]
+      out <- result$jobs[[1L]]
       tibble::tibble(
         name = out$jobName,
         id = out$jobId,
         arn = out$jobArn,
+        queue = basename(out$jobQueue),
         status = tolower(out$status),
         reason = if_any(
           length(out$statusReason),
           out$statusReason,
-          NA_character_
+          paste(
+            "EMPTY. Either the job has not completed yet or the DescribeJobs",
+            "API call is missing a status reason. In the latter case,",
+            "you may need a different type of query to get the status reason."
+          )
         ),
-        created = out$createdAt,
-        started = if_any(length(out$startedAt), out$startedAt, NA_real_),
-        stopped = if_any(length(out$stoppedAt), out$stoppedAt, NA_real_)
+        created = as_timestamp(out$createdAt),
+        started = as_timestamp(out$startedAt),
+        stopped = as_timestamp(out$stoppedAt)
       )
       # nocov end
     },
@@ -290,12 +308,23 @@ crew_class_monitor_aws_batch <- R6::R6Class(
     #'   [crew_monitor_aws_batch()]. This method cannot use
     #'   other log drivers such as Splunk, and it will fail if the log
     #'   group is wrong or missing.
-    #' @return A `tibble` with log information.
+    #' @return `log()` invisibly returns a `tibble` with log information
+    #'   and writes the messages to the stream or path given by the
+    #'   `path` argument.
     #' @param id Character of length 1, job ID. This is different
     #'   from the user-supplied job name.
+    #' @param path Character string or stream (e.g. `stdout()`),
+    #'   file path or connection passed to the `con` argument of
+    #'   `writeLines()` to print the log messages.
+    #'   Set to `nullfile()` to suppress output
+    #'   (and use the invisibly returned `tibble` object instead).
     #' @param start_from_head Logical of length 1, whether to print earlier
     #'   log events before later ones.
-    log = function(id, start_from_head = FALSE) {
+    log = function(
+      id,
+      path = stdout(),
+      start_from_head = FALSE
+    ) {
       # Covered in tests/interactive/jobs.R
       # nocov start
       crew::crew_assert(
@@ -310,8 +339,8 @@ crew_class_monitor_aws_batch <- R6::R6Class(
       result <- client$describe_jobs(jobs = id)
       null_log <- tibble::tibble(
         message = character(0L),
-        timestamp = character(0L),
-        ingestion_time = character(0L)
+        timestamp = as.POSIXct(numeric(0L)),
+        ingestion_time = as.POSIXct(numeric(0L))
       )
       if (!length(result$jobs)) {
         return(null_log)
@@ -323,28 +352,43 @@ crew_class_monitor_aws_batch <- R6::R6Class(
         endpoint = private$.endpoint,
         region = private$.region
       )
-      pages <- paws.common::paginate(
-        client$get_log_events(
-          logGroupName = private$.log_group,
-          logStreamName = log_stream_name,
-          startFromHead = start_from_head
+      pages <- tryCatch(
+        paws.common::paginate(
+          client$get_log_events(
+            logGroupName = private$.log_group,
+            logStreamName = log_stream_name,
+            startFromHead = start_from_head
+          ),
+          StopOnSameToken = TRUE
         ),
-        StopOnSameToken = TRUE
+        error = function(condition) {
+          crew::crew_assert(
+            FALSE,
+            message = paste(
+              "Error getting log data. If the job has not started yet,",
+              "please wait for it to start. Otherwise, the original error",
+              "message could be misleading. Original error:",
+              conditionMessage(condition)
+            )
+          )
+        }
       )
       out <- list()
       for (page in pages) {
         for (event in page$events) {
           out[[length(out) + 1L]] <- tibble::tibble(
             message = event$message,
-            timestamp = event$timestamp,
-            ingestion_time = event$ingestionTime
+            timestamp = as_timestamp(event$timestamp),
+            ingestion_time = as_timestamp(event$ingestionTime)
           )
         }
       }
       if (!length(out)) {
         return(null_log)
       }
-      do.call(what = vctrs::vec_rbind, args = out)
+      out <- do.call(what = vctrs::vec_rbind, args = out)
+      writeLines(text = out$message, con = path)
+      invisible(out)
       # nocov end
     },
     #' @description List all the jobs in the given job queue
@@ -401,29 +445,38 @@ crew_class_monitor_aws_batch <- R6::R6Class(
         )
       )
       client <- private$.client()
-      pages <- paws.common::paginate(
-        Operation = client$list_jobs(
-          jobQueue = private$.job_queue,
-          filters = filters
-        )
-      )
       out <- list()
-      for (page in pages) {
-        for (job in page$jobSummaryList) {
-          out[[length(out) + 1L]] <- tibble::tibble(
-            name = job$jobName,
-            id = job$jobId,
-            arn = job$jobArn,
-            status = job$status,
-            reason = if_any(
-              length(job$statusReason),
-              job$statusReason,
-              NA_character_
-            ),
-            created = job$createdAt,
-            started = if_any(length(job$startedAt), job$startedAt, NA_real_),
-            stopped = if_any(length(job$stoppedAt), job$stoppedAt, NA_real_)
+      for (job_queue in private$.job_queue) {
+        pages <- paws.common::paginate(
+          Operation = client$list_jobs(
+            jobQueue = job_queue,
+            filters = filters
           )
+        )
+        for (page in pages) {
+          for (job in page$jobSummaryList) {
+            out[[length(out) + 1L]] <- tibble::tibble(
+              name = job$jobName,
+              id = job$jobId,
+              arn = job$jobArn,
+              queue = job_queue,
+              status = job$status,
+              reason = if_any(
+                length(job$statusReason),
+                job$statusReason,
+                paste(
+                  "EMPTY. Either the job has not concluded or the",
+                  "ListJobs API call cannot show the status reason.",
+                  "In the latter case, status() is more reliable",
+                  "because it uses DescribeJobs instead of ListJobs",
+                  "(c.f. https://github.com/aws/aws-sdk-js/issues/4587)."
+                )
+              ),
+              created = as_timestamp(job$createdAt),
+              started = as_timestamp(job$startedAt),
+              stopped = as_timestamp(job$stoppedAt)
+            )
+          }
         }
       }
       if (!length(out)) {
@@ -431,11 +484,12 @@ crew_class_monitor_aws_batch <- R6::R6Class(
           name = character(0L),
           id = character(0L),
           arn = character(0L),
+          queue = character(0L),
           status = character(0L),
           reason = character(0L),
-          created = numeric(0L),
-          started = numeric(0L),
-          stopped = numeric(0L)
+          created = as.POSIXct(numeric(0L)),
+          started = as.POSIXct(numeric(0L)),
+          stopped = as.POSIXct(numeric(0L))
         )
       }
       out <- do.call(what = vctrs::vec_rbind, args = out)

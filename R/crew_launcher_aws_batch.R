@@ -71,6 +71,7 @@
 #'   Use `options_aws_batch` instead.
 crew_launcher_aws_batch <- function(
   name = NULL,
+  workers = 1L,
   seconds_interval = 0.5,
   seconds_timeout = 60,
   seconds_launch = 1800,
@@ -82,7 +83,7 @@ crew_launcher_aws_batch <- function(
   reset_packages = FALSE,
   reset_options = FALSE,
   garbage_collection = FALSE,
-  crashes_error = 5L,
+  crashes_error = NULL,
   tls = crew::crew_tls(mode = "automatic"),
   processes = NULL,
   r_arguments = c("--no-save", "--no-restore"),
@@ -106,6 +107,14 @@ crew_launcher_aws_batch <- function(
   aws_batch_eks_properties_override = NULL
 ) {
   name <- as.character(name %|||% crew::crew_random_name())
+  crew::crew_deprecate(
+    name = "crashes_error",
+    date = "2025-01-27",
+    version = "0.0.8",
+    alternative = "crashes_max",
+    condition = "message",
+    value = crashes_error
+  )
   args <- match.call()
   crew::crew_assert(
     options_aws_batch,
@@ -126,6 +135,7 @@ crew_launcher_aws_batch <- function(
   }
   launcher <- crew_class_launcher_aws_batch$new(
     name = name,
+    workers = workers,
     seconds_interval = seconds_interval,
     seconds_timeout = seconds_timeout,
     seconds_launch = seconds_launch,
@@ -137,7 +147,6 @@ crew_launcher_aws_batch <- function(
     reset_packages = reset_packages,
     reset_options = reset_options,
     garbage_collection = garbage_collection,
-    crashes_error = crashes_error,
     tls = tls,
     processes = processes,
     r_arguments = r_arguments,
@@ -170,18 +179,8 @@ crew_class_launcher_aws_batch <- R6::R6Class(
         region = private$.options_aws_batch$region
       )
     },
-    .args_submit = function(call, name, attempt) {
-      if (private$.options_aws_batch$verbose) {
-        crew_message(
-          "Launching worker ",
-          name,
-          " attempt ",
-          attempt,
-          " of ",
-          private$.crashes_error
-        )
-      }
-      options <- crew_options_slice(private$.options_aws_batch, attempt)
+    .args_submit = function(call, name) {
+      options <- private$.options_aws_batch
       container_overrides <- as.list(options$container_overrides)
       container_overrides$command <- list("Rscript", "-e", call)
       out <- list(
@@ -212,6 +211,7 @@ crew_class_launcher_aws_batch <- R6::R6Class(
     #' @description Abstract launcher constructor.
     #' @return An abstract launcher object.
     #' @param name See [crew_launcher_aws_batch()].
+    #' @param workers See [crew_launcher_aws_batch()].
     #' @param seconds_interval See [crew_launcher_aws_batch()].
     #' @param seconds_timeout See [crew_launcher_aws_batch()].
     #' @param seconds_launch See [crew_launcher_aws_batch()].
@@ -223,7 +223,6 @@ crew_class_launcher_aws_batch <- R6::R6Class(
     #' @param reset_packages See [crew_launcher_aws_batch()].
     #' @param reset_options See [crew_launcher_aws_batch()].
     #' @param garbage_collection See [crew_launcher_aws_batch()].
-    #' @param crashes_error See [crew_launcher_aws_batch()].
     #' @param tls See [crew_launcher_aws_batch()].
     #' @param processes See [crew_launcher_aws_batch()].
     #' @param r_arguments See [crew_launcher_aws_batch()].
@@ -231,6 +230,7 @@ crew_class_launcher_aws_batch <- R6::R6Class(
     #' @param options_aws_batch See [crew_launcher_aws_batch()].
     initialize = function(
       name = NULL,
+      workers = NULL,
       seconds_interval = NULL,
       seconds_timeout = NULL,
       seconds_launch = NULL,
@@ -242,7 +242,6 @@ crew_class_launcher_aws_batch <- R6::R6Class(
       reset_packages = NULL,
       reset_options = NULL,
       garbage_collection = NULL,
-      crashes_error = NULL,
       tls = NULL,
       processes = NULL,
       r_arguments = NULL,
@@ -251,6 +250,7 @@ crew_class_launcher_aws_batch <- R6::R6Class(
     ) {
       super$initialize(
         name = name,
+        workers = workers,
         seconds_interval = seconds_interval,
         seconds_timeout = seconds_timeout,
         seconds_launch = seconds_launch,
@@ -262,7 +262,6 @@ crew_class_launcher_aws_batch <- R6::R6Class(
         reset_packages = reset_packages,
         reset_options = reset_options,
         garbage_collection = garbage_collection,
-        crashes_error = crashes_error,
         tls = tls,
         processes = processes,
         r_arguments = r_arguments,
@@ -286,18 +285,13 @@ crew_class_launcher_aws_batch <- R6::R6Class(
     #'   initiate the worker.
     #' @return A handle object to allow the termination of the worker
     #'   later on.
-    #' @param call Character of length 1, a namespaced call to
+    #' @param call Character string, a namespaced call to
     #'   [crew::crew_worker()]
     #'   which will run in the worker and accept tasks.
-    #' @param name Character of length 1, an informative worker name.
-    #' @param launcher Character of length 1, name of the launcher.
-    #' @param worker Positive integer of length 1, index of the worker.
-    #'   This worker index remains the same even when the current instance
-    #'   of the worker exits and a new instance launches.
-    #'   It is always between 1 and the maximum number of concurrent workers.
-    #' @param instance Character of length 1 to uniquely identify
-    #'   the current instance of the worker.
-    launch_worker = function(call, name, launcher, worker, instance) {
+    #' @param name Character string, an informative worker name.
+    #' @param launcher Character string, name of the launcher.
+    #' @param worker Character string, name of the worker instance.
+    launch_worker = function(call, name, launcher, worker) {
       # Tested in tests/controller/persistent.R
       # nocov start
       self$async$eval(
@@ -307,11 +301,7 @@ crew_class_launcher_aws_batch <- R6::R6Class(
         ),
         data = list(
           args_client = private$.args_client(),
-          args_submit = private$.args_submit(
-            call = call,
-            name = name,
-            attempt = self$crashes(index = worker) + 1L
-          )
+          args_submit = private$.args_submit(call = call, name = name)
         )
       )
       # nocov end

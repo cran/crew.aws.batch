@@ -1,3 +1,10 @@
+# crew.aws.batch 0.0.8
+
+* Deprecate retryable options because `crew` 1.0.0 no longer supports them.
+* In the monitor, return `POSIXct` time stamps for `created`, `started`, `stopped`, `timestamp` and `ingestion_time`.
+* Print log messages from `log()` with `writeLines()`.
+* When `statusReason` cannot be shown, show an informative text entry instead of `NA`.
+
 # crew.aws.batch 0.0.7
 
 * Send both cancellation and termination requests to end jobs.

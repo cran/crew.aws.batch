@@ -181,7 +181,7 @@ A one-row \code{tibble} with information about the job.
 \subsection{Method \code{log()}}{
 Get the CloudWatch log of a job.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{crew_class_monitor_aws_batch$log(id, start_from_head = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{crew_class_monitor_aws_batch$log(id, path = stdout(), start_from_head = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -189,6 +189,12 @@ Get the CloudWatch log of a job.
 \describe{
 \item{\code{id}}{Character of length 1, job ID. This is different
 from the user-supplied job name.}
+
+\item{\code{path}}{Character string or stream (e.g. \code{stdout()}),
+file path or connection passed to the \code{con} argument of
+\code{writeLines()} to print the log messages.
+Set to \code{nullfile()} to suppress output
+(and use the invisibly returned \code{tibble} object instead).}
 
 \item{\code{start_from_head}}{Logical of length 1, whether to print earlier
 log events before later ones.}
@@ -205,7 +211,9 @@ group is wrong or missing.
 }
 
 \subsection{Returns}{
-A \code{tibble} with log information.
+\code{log()} invisibly returns a \code{tibble} with log information
+and writes the messages to the stream or path given by the
+\code{path} argument.
 }
 }
 \if{html}{\out{<hr>}}
