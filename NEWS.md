@@ -1,3 +1,11 @@
+# crew.aws.batch 0.0.10
+
+* Fix links.
+
+# crew.aws.batch 0.0.9
+
+* * Add a new `serialization` argument to the controller.
+
 # crew.aws.batch 0.0.8
 
 * Deprecate retryable options because `crew` 1.0.0 no longer supports them.

@@ -6,9 +6,9 @@
 #' @inheritSection crew_launcher_aws_batch IAM policies
 #' @inheritSection crew_launcher_aws_batch AWS arguments
 #' @inheritSection crew_launcher_aws_batch Verbosity
-#' @inheritParams crew::crew_client
 #' @inheritParams crew_launcher_aws_batch
 #' @inheritParams crew::crew_controller
+#' @inheritParams crew::crew_client
 #' @examples
 #' if (identical(Sys.getenv("CREW_EXAMPLES"), "true")) {
 #' controller <- crew_controller_aws_batch(
@@ -29,6 +29,7 @@ crew_controller_aws_batch <- function(
   tls = crew::crew_tls(mode = "automatic"),
   tls_enable = NULL,
   tls_config = NULL,
+  serialization = NULL,
   seconds_interval = 0.5,
   seconds_timeout = 60,
   seconds_launch = 1800,
@@ -87,6 +88,7 @@ crew_controller_aws_batch <- function(
     tls = tls,
     tls_enable = tls_enable,
     tls_config = tls_config,
+    serialization = serialization,
     seconds_interval = seconds_interval,
     seconds_timeout = seconds_timeout
   )
