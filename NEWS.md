@@ -1,3 +1,13 @@
+# crew.aws.batch 0.1.0
+
+* Remove `termiante_worker()` (https://github.com/wlandau/crew/pull/236).
+* Support array jobs with the new `launch_workers()` (plural) method in launchers.
+* Allow custom compute profiles.
+
+# crew.aws.batch 0.0.12
+
+* Add details to job status output in monitor.
+
 # crew.aws.batch 0.0.11
 
 * Compatibility with https://github.com/wlandau/crew/issues/217.

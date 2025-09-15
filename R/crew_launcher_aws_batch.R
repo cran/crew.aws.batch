@@ -179,7 +179,7 @@ crew_class_launcher_aws_batch <- R6::R6Class(
         region = private$.options_aws_batch$region
       )
     },
-    .args_submit = function(call, name) {
+    .args_submit = function(call, name, n) {
       options <- private$.options_aws_batch
       container_overrides <- as.list(options$container_overrides)
       container_overrides$command <- list("Rscript", "-e", call)
@@ -198,6 +198,10 @@ crew_class_launcher_aws_batch <- R6::R6Class(
         tags = options$tags,
         eksPropertiesOverride = options$eks_properties_override
       )
+      if (n > 1L) {
+        # AWS Batch array jobs must have size at least 2.
+        out$arrayProperties = list(size = n)
+      }
       non_null(out)
     }
   ),
@@ -288,40 +292,31 @@ crew_class_launcher_aws_batch <- R6::R6Class(
     #' @param call Character string, a namespaced call to
     #'   [crew::crew_worker()]
     #'   which will run in the worker and accept tasks.
-    #' @param name Character string, an informative worker name.
-    #' @param launcher Character string, name of the launcher.
-    #' @param worker Character string, name of the worker instance.
-    launch_worker = function(call, name, launcher, worker) {
+    #' @param n Integer of length 1, number of workers
+    #'   to launch in the array job for the current round of auto-scaling.
+    launch_workers = function(call, n) {
       # Tested in tests/controller/persistent.R
       # nocov start
-      self$async$eval(
-        command = crew.aws.batch::crew_launcher_aws_batch_launch(
-          args_client = args_client,
-          args_submit = args_submit
-        ),
-        data = list(
-          args_client = private$.args_client(),
-          args_submit = private$.args_submit(call = call, name = name)
-        )
+      name <- paste0(
+        "crew-worker-",
+        self$name,
+        "-",
+        nanonext::random(n = 4L)
       )
-      # nocov end
-    },
-    #' @description Terminate a local process worker.
-    #' @return `NULL` (invisibly).
-    #' @param handle A process handle object previously
-    #'   returned by `launch_worker()`.
-    terminate_worker = function(handle) {
-      # Tested in tests/controller/minimal.R
-      # nocov start
-      self$async$eval(
-        crew.aws.batch::crew_launcher_aws_batch_terminate(
-          args_client = args_client,
-          job_id = job_id
-        ),
-        data = list(
-          args_client = private$.args_client(),
-          job_id = handle$data$jobId
-        )
+      # AWS batch array jobs be at most of size 10000, so we have to
+      # batch the job submission requests.
+      batch_size <- 1e4L
+      n_batches <- floor(n / batch_size)
+      remainder <- n %% batch_size
+      n_batched <- c(rep(batch_size, n_batches), remainder)
+      lapply(
+        n_batched,
+        function(size) {
+          crew.aws.batch::crew_launcher_aws_batch_launch(
+            args_client = private$.args_client(),
+            args_submit = private$.args_submit(call, name, size)
+          )
+        }
       )
       # nocov end
     }
@@ -347,35 +342,6 @@ crew_launcher_aws_batch_launch <- function(args_client, args_submit) {
   # nocov start
   client <- do.call(what = paws.compute::batch, args = args_client)
   do.call(what = client$submit_job, args = args_submit)
-  # nocov end
-}
-
-#' @title Terminate an AWS Batch job.
-#' @export
-#' @keywords internal
-#' @description Not a user-side function. For internal use only.
-#' @details This utility is its own separate exported function specific to
-#'   the launcher and not shared with the job definition or monitor classes.
-#'   It generates the `paws.compute::batch()` client within itself
-#'   instead of a method inside the class.
-#'   This is all because it needs to run on a separate local worker process
-#'   and it needs to accept exportable arguments.
-#' @return HTTP response from submitting the job.
-#' @param args_client Named list of arguments to `paws.compute::batch()`.
-#' @param job_id Character of length 1, ID of the AWS Batch job to
-#'   terminate.
-crew_launcher_aws_batch_terminate <- function(args_client, job_id) {
-  # nocov start
-  # Tested in tests/controller/minimal.R
-  client <- do.call(what = paws.compute::batch, args = args_client)
-  client$cancel_job(
-    jobId = job_id,
-    reason = "cancelled by crew controller"
-  )
-  client$terminate_job(
-    jobId = job_id,
-    reason = "terminated by crew controller"
-  )
   # nocov end
 }
 

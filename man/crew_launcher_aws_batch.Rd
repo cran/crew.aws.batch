@@ -62,7 +62,7 @@ in a \code{\link[crew:crew_throttle]{crew_throttle()}} object.}
 
 \item{seconds_timeout}{Number of seconds until timing
 out while waiting for certain synchronous operations to complete,
-such as checking \code{mirai::status()}.}
+such as checking \code{mirai::info()}.}
 
 \item{seconds_launch}{Seconds of startup time to allow.
 A worker is unconditionally assumed to be alive
@@ -85,11 +85,8 @@ have completed.
 See the \code{walltime} argument of \code{mirai::daemon()}.}
 
 \item{tasks_max}{Maximum number of tasks that a worker will do before
-exiting. See the \code{maxtasks} argument of \code{mirai::daemon()}.
-\code{crew} does not
-excel with perfectly transient workers because it does not micromanage
-the assignment of tasks to workers, it is recommended to set
-\code{tasks_max} to a value greater than 1.}
+exiting. Also determines how often the controller auto-scales.
+See the Auto-scaling section for details.}
 
 \item{tasks_timers}{Number of tasks to do before activating
 the timers for \code{seconds_idle} and \code{seconds_wall}.
@@ -116,14 +113,7 @@ Please use the \code{garbage_collection} option of
 
 \item{tls}{A TLS configuration object from \code{\link[crew:crew_tls]{crew_tls()}}.}
 
-\item{processes}{\code{NULL} or positive integer of length 1,
-number of local processes to
-launch to allow worker launches to happen asynchronously. If \code{NULL},
-then no local processes are launched. If 1 or greater, then the launcher
-starts the processes on \code{start()} and ends them on \code{terminate()}.
-Plugins that may use these processes should run asynchronous calls
-using \code{launcher$async$eval()} and expect a \code{mirai} task object
-as the return value.}
+\item{processes}{Deprecated on 2025-08-27 (\code{crew} version 1.2.1.9009).}
 
 \item{r_arguments}{Optional character vector of command line arguments
 to pass to \code{Rscript} (non-Windows) or \code{Rscript.exe} (Windows)
